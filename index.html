@@ -1,0 +1,243 @@
+<html>
+
+<head>
+<link rel="stylesheet" type="text/css" href="styles.css"></style>
+</head>
+<body>
+	<canvas id="canvas" style="position:absolute">
+</body>
+
+<script>
+
+//makes debugging annoying. Probably useful for deployment though
+// window.onbeforeunload = function (e) {
+//     e = e || window.event;
+
+//     // For IE and Firefox prior to version 4
+//     if (e) {
+//         e.returnValue = 'Unsaved changes will be lost.';
+//     }
+
+//     // For Safari
+//     return 'Unsaved changes will be lost.';
+// };
+// </script>
+
+<script type="text/javascript">
+	var canvas = document.getElementById('canvas');
+	var gfx = canvas.getContext('2d');
+
+	var width = canvas.width;
+	var height = canvas.height;
+
+	var zoomLevelX = 4; //ratio of canvas space allocated per tile of the batch
+	var zoomLevelY = 4; //Should probably stay a power of 2, for now.
+
+	var batch = [];
+
+	var adjustCanvas = function(x, y, width, height) {
+		canvas.style.left = x;
+		canvas.style.top = y;
+		canvas.style.width = width;
+		canvas.style.height = height;
+	}
+
+	var n2c = function(n) {
+		var r = n >> 24 & 0xFF;
+		var g = n >> 16 & 0xFF;
+		var b = n >> 8  & 0xFF;
+		var a = n       & 0xFF;
+		return "rgba("+r+","+g+","+b+","+(a/255)+")";
+	}
+
+	var c2n = function(r,g,b,a) {
+		r = r & 0xFF;
+		g = g & 0xFF;
+		b = b & 0xFF;
+		a = a & 0xFF;
+		return (r << 24) + (g << 16) + (b << 8) + a;
+	}
+
+	var get_r_channel = function(n) { return n >> 24 & 0xFF; }
+	var get_g_channel = function(n) { return n >> 16 & 0xFF; }
+	var get_b_channel = function(n) { return n >> 8  & 0xFF; }
+	var get_a_channel = function(n) { return n       & 0xFF; }
+
+	var set_r_channel = function(n, r) { return (n & (~(0xFF << 24))) | (r & 0xFF) << 24; }
+	var set_g_channel = function(n, g) { return (n & (~(0xFF << 16))) | (g & 0xFF) << 16; }
+	var set_b_channel = function(n, b) { return (n & (~(0xFF <<  8))) | (b & 0xFF) << 8; }
+	var set_a_channel = function(n, a) { return (n & (~(0xFF)))       | (a & 0xFF); }	
+
+
+
+
+	var COLORS = {
+		black:c2n(000,000,000,255),
+		white:c2n(255,255,255,255),
+		red:  c2n(255,000,000,255),
+		green:c2n(000,255,000,255),
+		blue: c2n(000,000,255,255),
+		alpha:c2n(000,000,000,000)
+	}
+
+
+	function Layer(){
+		this.canvas = [];
+		this.mask = null; //can be a Layer
+		this.offsetx = 0;
+		this.offsety = 0;
+		this.rotation = 0;
+		this.mode = defaultMode;
+	}
+	Layer.prototype.setPixel = function(x, y, color) {
+		if(!this.canvas[x])
+			this.canvas[x] = [];
+		this.canvas[x][y] = color;
+	}
+	Layer.prototype.clone = function() {
+		var c = new Layer();
+		c.offsetx = this.offsetx;
+		c.offsety = this.offsety;
+		c.rotation = this.rotation;
+		c.mode = this.mode;
+		for(var i in this.canvas) {
+			c.canvas[i] = [];
+			for (var j in this.canvas[i]) {
+				c.canvas[i][j] = this.canvas[i][j];
+			}
+		}
+	}
+
+	var applyMask = function(color, mask) {
+		return set_a_channel(color, (get_a_channel(color) * mask)/255);
+	}
+
+	//A goes on top, B on bottom
+	var defaultMode = function(top, bot) {
+		var a1 = get_a_channel(top);
+		var a2 = get_a_channel(bot);
+		var topcent = a1/255;
+		var botcent = (1-topcent) * (a2/255);
+
+		// console.log(n2c(top));
+		// console.log(n2c(bot));
+		// console.log(a1);
+		// console.log(a2);
+		// console.log(topcent);
+		// console.log(botcent);
+
+		var r = Math.floor(get_r_channel(top) * topcent + get_r_channel(bot) * botcent);
+		var g = Math.floor(get_g_channel(top) * topcent + get_g_channel(bot) * botcent);
+		var b = Math.floor(get_b_channel(top) * topcent + get_b_channel(bot) * botcent);
+
+		var combinedAlpha = Math.min(a1 + a2, 255);
+		var c = c2n(r, g, b, combinedAlpha);
+		console.log(n2c(c));
+		return c;
+	}
+
+	var drawLayer = function(layer) 
+	{
+		var mask = layer.mask;
+		for(var x in layer.canvas) {
+			x = parseInt(x, 10);
+			var X = x + layer.offsetx;
+			console.log(X);
+			if(!batch[X]) batch[X] = [];
+			for(var y in layer.canvas[x]) {
+				y = parseInt(y, 10);
+				var Y = y + layer.offsety;
+
+				var c = layer.canvas[x][y];
+				var underColor = batch[X][Y] || COLORS.alpha;
+				var maskVal = (mask && mask[x] && mask[x][y]) ? mask[x][y] : 0xFF;
+				c = applyMask(c, maskVal);
+				c = layer.mode(c, underColor);
+				batch[X][Y] = c;
+			}	
+		}
+	}
+
+
+	var drawBatch = function()
+	{
+		gfx.clearRect(0, 0, width, height);
+		for(var i in batch) {
+			if(i < 0) continue;
+			if(i > width) return; //all subsequent stuff will be out of range
+			for(var j in batch[i]) {
+				if(j < 0) continue;
+				if(j > height) continue;
+
+				var n = batch[i][j];
+				gfx.fillStyle = n2c(n);
+				gfx.fillRect(i*zoomLevelX,j*zoomLevelY,zoomLevelX,zoomLevelY);
+			}
+		}
+	}
+
+	function Workspace(name) {
+		this.name = name;
+		this.tabs = [];
+	}
+
+	function Tab(label) {
+		this.label = label;
+		this.images = [];
+	}
+
+	function Image(name, width, height) {
+		this.name = name;
+		this.layers = [];
+		this.selection = null;
+		this.creation_mode = null;
+		this.width = width;
+		this.height = height;
+	}
+
+	function Toolbar() {
+		var that = this;
+		this.tools = [];
+		this.element = document.createElement('div');
+		this.element.className = 'slurm_toolbar';
+		this.element.setAttribute("collapsed", "false");
+		this.element.setAttribute("onLeft", "true");
+		
+		this.collapseButton = document.createElement('div');
+		this.collapseButton.className = 'slurm_toolbar_collapseButton';
+		
+		this.collapseCharm = document.createElement('div');
+		this.collapseCharm.className = 'slurm_arrowCharm';
+		this.collapseCharm.setAttribute("dir", "left");
+
+		this.toolbarContentsElement = document.createElement('div');
+		this.toolbarContentsElement.className = 'slurm_toolbar_contentsElement';
+		
+		document.body.appendChild(this.element);
+		this.element.appendChild(this.toolbarContentsElement);
+		this.element.appendChild(this.collapseButton);
+		this.collapseButton.appendChild(this.collapseCharm);
+
+		this.collapseButton.onclick = function(){ 
+			that.element.setAttribute("collapsed", (that.element.getAttribute("collapsed") == "true") ? "false" : "true"); 
+			that.collapseCharm.setAttribute("dir", (that.collapseCharm.getAttribute("dir") == "left") ? "right" : "left");
+		}
+	}
+
+
+
+	app = {};
+	function slurm_setup()
+	{	
+		app.workspaces = [];
+		var workspace = new Workspace("Workspace 1");
+		app.workspaces.push(workspace);
+		var tab = new Tab("Tab 1");
+		workspace.tabs.push(tab);
+
+		app.toolbar = new Toolbar();
+	}
+	slurm_setup();
+
+</script>
+</html>

@@ -1,0 +1,96 @@
+.slurm_toolbar {
+	height:500px;
+	width:20px;
+	background-color: blue;
+	border-radius:5px;
+}
+
+.slurm_toolbar[collapsed=true] {
+	background-color: grey;
+	width:20px;
+}
+
+.slurm_toolbar[collapsed=false] {
+	background-color: lightgrey;
+	width:200px;
+} 
+
+.slurm_toolbar_contentsElement {
+	height:100%;
+	width:180px;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.slurm_toolbar[collapsed=true]>.slurm_toolbar_contentsElement {
+	display: none;
+}
+
+.slurm_toolbar[collapsed=false][onLeft=false]>.slurm_toolbar_contentsElement {
+	display: inline;
+	float:right;
+}
+
+.slurm_toolbar[collapsed=false][onLeft=true]>.slurm_toolbar_contentsElement {
+	display: inline;
+	float:left;
+}
+
+.slurm_toolbar_collapseButton {
+	width:20px;
+	height:100%;
+	display:table;
+	table-layout: fixed;
+	padding:0px;
+}
+
+.slurm_toolbar[collapsed=true]>.slurm_toolbar_collapseButton {
+	background-color:lightgray;
+	border-bottom-right-radius: 5px;
+	border-top-right-radius: 5px;
+	border-bottom-left-radius: 5px;
+	border-top-left-radius: 5px;
+	float:right;
+}
+
+.slurm_toolbar[collapsed=false][onLeft=true]>.slurm_toolbar_collapseButton {
+	background-color:darkgray;
+	border-bottom-right-radius: 5px;
+	border-top-right-radius: 5px;
+	border-bottom-left-radius: 0px;
+	border-top-left-radius: 0px;
+	float:right;
+}
+
+.slurm_toolbar[collapsed=false][onLeft=false]>.slurm_toolbar_collapseButton {
+	background-color:darkgray;
+	border-bottom-right-radius: 0px;
+	border-top-right-radius: 0px;
+	border-bottom-left-radius: 5px;
+	border-top-left-radius: 5px;
+	float:left;
+}
+
+.slurm_arrowCharm {
+	float:none;
+	vertical-align: middle;
+	text-align: center;
+	display:table-cell;
+	height:100%;
+}
+
+.slurm_arrowCharm[dir=left]::before{
+	content:"\25C0";
+}
+
+.slurm_arrowCharm[dir=right]::before{
+	content:"\25B6";
+}
+
+.slurm_arrowCharm[dir=up]::before{
+	content:"\25B2";
+}
+
+.slurm_arrowCharm[dir=down]::before{
+	content:"25BC";
+}
